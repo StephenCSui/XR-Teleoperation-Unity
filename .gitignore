@@ -1,0 +1,21 @@
+# Unity generated
+/Library/
+/Temp/
+/Logs/
+/obj/
+/UnityRos2_BurstDebugInformation_DoNotShip/
+
+# User-local settings (not shared)
+/UserSettings/
+
+# Build outputs
+*.apk
+*.aab
+*.unitypackage
+
+# Crash dumps
+mono_crash.mem.*.blob
+
+# OS
+.DS_Store
+Thumbs.db
