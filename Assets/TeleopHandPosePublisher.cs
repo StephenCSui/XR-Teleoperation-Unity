@@ -63,6 +63,9 @@ public class TeleopHandPosePublisher : MonoBehaviour
     private bool penDown = false;
     private List<InputDevice> _xrDevices = new List<InputDevice>();
 
+    private LineRenderer _pointerLine;
+    private Transform    _pointerParent;
+
     void Start()
     {
         ros = ROSConnection.GetOrCreateInstance();
@@ -99,6 +102,9 @@ public class TeleopHandPosePublisher : MonoBehaviour
         lr.endColor   = new Color(pointerColor.r, pointerColor.g, pointerColor.b, 0f);
         lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         lr.receiveShadows    = false;
+
+        _pointerLine   = lr;
+        _pointerParent = parent;
     }
 
     void OnEePoseReceived(PoseStampedMsg msg)
@@ -195,6 +201,24 @@ public class TeleopHandPosePublisher : MonoBehaviour
                 PrintRawQuaternionDebug();
             }
         }
+
+        UpdatePointerRayLength();
+    }
+
+    void UpdatePointerRayLength()
+    {
+        if (_pointerLine == null || _pointerParent == null) return;
+
+        float maxLen = pointerLengthM;
+        float hitLen = maxLen;
+
+        Ray ray = new Ray(_pointerParent.position, _pointerParent.up);
+        if (Physics.Raycast(ray, out RaycastHit hit, maxLen))
+            hitLen = hit.distance;
+
+        // Convert world hit distance to local scale along parent's Y axis
+        float localLen = hitLen / _pointerParent.lossyScale.y;
+        _pointerLine.SetPosition(1, Vector3.up * localLen);
     }
 
     void ReadTrigger()

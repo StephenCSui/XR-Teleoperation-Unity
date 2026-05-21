@@ -55,9 +55,11 @@ public class CanvasPainter : MonoBehaviour
         if (!Physics.Raycast(ray, out RaycastHit hit, maxRayDistanceM)) return;
         if (hit.collider.gameObject != gameObject) return;
 
-        Vector2 uv = hit.textureCoord;
-        int px = Mathf.Clamp((int)(uv.x * _paintTex.width),  0, _paintTex.width  - 1);
-        int py = Mathf.Clamp((int)(uv.y * _paintTex.height), 0, _paintTex.height - 1);
+        // BoxCollider doesn't provide valid textureCoord — compute UV from local hit position.
+        // Canvas local space has x and y in [-0.5, 0.5]; map to [0, 1].
+        Vector3 local = transform.InverseTransformPoint(hit.point);
+        int px = Mathf.Clamp((int)((local.x + 0.5f) * _paintTex.width),  0, _paintTex.width  - 1);
+        int py = Mathf.Clamp((int)((local.y + 0.5f) * _paintTex.height), 0, _paintTex.height - 1);
 
         PaintCircle(px, py);
         _paintTex.Apply();
