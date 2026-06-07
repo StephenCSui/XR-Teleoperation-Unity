@@ -185,11 +185,11 @@ public class TeleopHandPosePublisher : MonoBehaviour
         if (Time.realtimeSinceStartup >= nextPublishTime)
         {
             nextPublishTime += period;
-            // TeleopModeController owns publishing during PRECISION mode
-            if (modeController != null && modeController.IsPrecision) return;
+            bool isPrecision = modeController != null && modeController.IsPrecision;
+            ros.Publish(penDownTopic, new BoolMsg(penDown));  // trigger-gated in both modes
+            if (isPrecision) return;
             PublishTeleop();
             PublishPoseStamped();
-            ros.Publish(penDownTopic, new BoolMsg(penDown));
         }
 
         if (debugRawQuaternion)
@@ -226,8 +226,8 @@ public class TeleopHandPosePublisher : MonoBehaviour
         InputDevices.GetDevicesAtXRNode(XRNode.RightHand, _xrDevices);
         if (_xrDevices.Count > 0)
         {
-            _xrDevices[0].TryGetFeatureValue(CommonUsages.triggerButton, out bool trigger);
-            penDown = trigger;
+            _xrDevices[0].TryGetFeatureValue(CommonUsages.trigger, out float triggerVal);
+            penDown = triggerVal > 0.5f;
         }
 #if !UNITY_ANDROID
         penDown = penDown || Input.GetKey(KeyCode.P);
@@ -295,7 +295,8 @@ public class TeleopHandPosePublisher : MonoBehaviour
 
     public static Vector3 RosToUnityPosition(Vector3 ros)
     {
-        return new Vector3(-ros.y, ros.z, ros.x);
+        // Base rotated 180° around Z: Unity X = +ROS Y, Unity Y = +ROS Z, Unity Z = -ROS X
+        return new Vector3(ros.y, ros.z, -ros.x);
     }
 
     public static Quaternion RosToUnityRotation(Quaternion q)
@@ -303,7 +304,8 @@ public class TeleopHandPosePublisher : MonoBehaviour
         float n = Mathf.Sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
         if (n < 1e-6f) return Quaternion.identity;
         q = new Quaternion(q.x/n, q.y/n, q.z/n, q.w/n);
-        var r = new Quaternion(-q.y, q.z, q.x, -q.w);
+        // Base rotated 180° around Z — axis transform: n_unity = (n_y, n_z, -n_x); angle negated for handedness
+        var r = new Quaternion(-q.y, -q.z, q.x, q.w);
         n = Mathf.Sqrt(r.x*r.x + r.y*r.y + r.z*r.z + r.w*r.w);
         if (n < 1e-6f) return Quaternion.identity;
         return new Quaternion(r.x/n, r.y/n, r.z/n, r.w/n);

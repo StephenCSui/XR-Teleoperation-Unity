@@ -21,8 +21,8 @@ public class TeleopModeController : MonoBehaviour
     public TeleopHandPosePublisher handPosePublisher;
 
     [Header("Precision Entry")]
-    public float stopPlaneRosX      = 0.45f;
-    public float stopPlaneTolerance = 0.01f;
+    public float stopPlaneRosX      = -0.42f;
+    public float stopPlaneTolerance = 0.03f;
 
     [Header("Precision Joystick")]
     public float positionSpeedMs = 0.10f;
@@ -69,9 +69,7 @@ public class TeleopModeController : MonoBehaviour
         {
             if (_mode == "NORMAL")
             {
-                bool atPlane = _haveEePose &&
-                    (float)_lastEePose.pose.position.x >= stopPlaneRosX - stopPlaneTolerance;
-                if (atPlane) EnterPrecision();
+                if (_haveEePose) EnterPrecision();
             }
             else
             {
@@ -91,9 +89,9 @@ public class TeleopModeController : MonoBehaviour
 
         if (!_orientationMode)
         {
-            // Unity X = -ROS Y (canvas left/right), Unity Y = ROS Z (canvas up/down)
+            // Unity X = +ROS Y (canvas left/right), Unity Y = ROS Z (canvas up/down)
             // Z is fixed — virtual hand stays pressed against canvas
-            _virtualHandPos.x -= stick.x * positionSpeedMs * speedMult * Time.deltaTime;
+            _virtualHandPos.x += stick.x * positionSpeedMs * speedMult * Time.deltaTime;
             _virtualHandPos.y += stick.y * positionSpeedMs * speedMult * Time.deltaTime;
         }
         else
@@ -107,7 +105,6 @@ public class TeleopModeController : MonoBehaviour
         }
 
         PublishVirtualPose();
-        _ros.Publish(penDownTopic, new BoolMsg(true));
     }
 
     void EnterPrecision()
@@ -117,8 +114,9 @@ public class TeleopModeController : MonoBehaviour
 
         Vector3 rosPos = new Vector3((float)p.x, (float)p.y, (float)p.z);
         _virtualHandPos = TeleopHandPosePublisher.RosToUnityPosition(rosPos);
-        // Push virtual Z (= ROS X) past touch plane — filter drives EE forward to 0.47
-        _virtualHandPos.z = stopPlaneRosX + 0.05f;
+        // Push virtual Z past touch plane — Unity Z = -ROS X (base rotated 180°)
+        // So to target ROS X = stopPlaneRosX - 0.05, Unity Z = -(stopPlaneRosX - 0.05)
+        _virtualHandPos.z = -(stopPlaneRosX - 0.30f);  // push well past touch plane; filter clamps
 
         // Use physical controller rotation — filter sees no discontinuity at mode switch
         _virtualHandRot = handPosePublisher != null
@@ -164,10 +162,10 @@ public class TeleopModeController : MonoBehaviour
     {
         var devices = new List<InputDevice>();
         InputDevices.GetDevicesAtXRNode(XRNode.RightHand, devices);
-        bool held = false;
+        float val = 0f;
         if (devices.Count > 0)
-            devices[0].TryGetFeatureValue(CommonUsages.triggerButton, out held);
-        return held;
+            devices[0].TryGetFeatureValue(CommonUsages.trigger, out val);
+        return val > 0.5f;
     }
 
     static bool XRButtonDown(XRNode node, InputFeatureUsage<bool> usage, ref bool prev)

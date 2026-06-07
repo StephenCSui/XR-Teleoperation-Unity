@@ -11,13 +11,13 @@ public class CanvasPainter : MonoBehaviour
     public RenderTexture renderTexture;
 
     [Header("Brush")]
-    public Color brushColor = Color.black;
+    public Color brushColor = new Color(0f, 0.75f, 0.2f);
     [Range(1, 64)]
-    public int brushRadiusPx = 6;
+    public int brushRadiusPx = 3;
 
     [Header("Ray")]
     [Tooltip("Max raycast distance (m). Set to just cover the pen-to-canvas gap (~0.05 m).")]
-    public float maxRayDistanceM = 0.05f;
+    public float maxRayDistanceM = 0.04f;
 
     private Texture2D _paintTex;
     private bool _penDown = false;
@@ -26,8 +26,9 @@ public class CanvasPainter : MonoBehaviour
     {
         if (renderTexture == null)
         {
-            Debug.LogError("[CanvasPainter] No RenderTexture assigned.");
-            return;
+            renderTexture = new RenderTexture(512, 512, 0, RenderTextureFormat.ARGB32);
+            renderTexture.Create();
+            Debug.Log("[CanvasPainter] Created runtime RenderTexture 512x512");
         }
 
         _paintTex = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGBA32, false);
@@ -51,15 +52,18 @@ public class CanvasPainter : MonoBehaviour
     {
         if (!_penDown || handProxy == null || _paintTex == null) return;
 
-        Ray ray = new Ray(handProxy.position, handProxy.up);
-        if (!Physics.Raycast(ray, out RaycastHit hit, maxRayDistanceM)) return;
-        if (hit.collider.gameObject != gameObject) return;
+        // Offset origin back so ray never starts inside the canvas collider.
+        // Use Collider.Raycast() instead of Physics.Raycast() so only the canvas
+        // collider is tested — ignores CommandBox/ActualBox colliders entirely.
+        Vector3 origin = handProxy.position - transform.forward * 0.03f;
+        Ray ray = new Ray(origin, transform.forward);
+        if (!GetComponent<Collider>().Raycast(ray, out RaycastHit hit, maxRayDistanceM + 0.03f)) return;
 
         // BoxCollider doesn't provide valid textureCoord — compute UV from local hit position.
         // Canvas local space has x and y in [-0.5, 0.5]; map to [0, 1].
         Vector3 local = transform.InverseTransformPoint(hit.point);
-        int px = Mathf.Clamp((int)((local.x + 0.5f) * _paintTex.width),  0, _paintTex.width  - 1);
-        int py = Mathf.Clamp((int)((local.y + 0.5f) * _paintTex.height), 0, _paintTex.height - 1);
+        int px = Mathf.Clamp((int)((-local.x + 0.5f) * _paintTex.width),  0, _paintTex.width  - 1);
+        int py = Mathf.Clamp((int)((-local.y + 0.5f) * _paintTex.height), 0, _paintTex.height - 1);
 
         PaintCircle(px, py);
         _paintTex.Apply();
